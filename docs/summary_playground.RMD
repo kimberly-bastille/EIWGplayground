@@ -38,45 +38,30 @@ datalist<-c("dataA", "dataB", "dataC", "dataD", "dataE")
 ```{r functions-to-write-into-package}
 
 summarize_me_for_fun<- function(data){
-  dat<-read.csv(here::here("data-raw", paste0(data, ".csv")))
-  # Summary Stats
-  # TRange <- quantile(dat$y, c(.025,.05, .25, .75,.95,.975))
-  # TMarker <- round(mean(dat$y),digits=5)
-  # TName <- dat$title
-  # TMin <- min(dat$y)
-  # TRange <- cbind(t(TRange),TMarker, TMin, TName)
-  # colnames(TRange)<-c("Range1","Range2","Range3","Range4",
-  #                      "Range5","Range6","Marker",
-  #                      "Value","Min")
-  # 
-  ## Status
-  mn<- mean(dat$y, na.rm=TRUE)
-  last5<- dat %>% dplyr::filter(x %in% c(max(dat$x):(max(dat$x) - 4))) 
-  mn5 = mean(last5$y, na.rm=TRUE)            # mean over the eval period
-  status <- ifelse(mn5>mn, paste0("greater than"), paste0("less than"))
   
-  ##Trend
-  m1 = lm(last5$x~last5$y)
-  s1 <- summary(m1)
-  b1 <- s1$coefficients[2,1]
-  pval <- s1$coefficients[2,4]
-  pred = predict(m1)
-  delta = pred[length(pred)] - pred[1]  # gives magnitude and direction of change over eval period
-  Z = abs(delta)-(sd(dat$y, na.rm=T))
-  trend <- ifelse(Z > 0, paste0("significantly"), paste0(""))
-  ## Guage
-  cdf <- stats::ecdf(dat$y)
-  guage <- round(cdf(mn5) *100)
+  dat_all<- read.csv(here::here("data-raw", paste0(data, ".csv"))) %>% 
+    dplyr::group_by(region) %>% 
+    dplyr::mutate(mn = mean(y, na.rm = TRUE))
   
-  summary_df<- data.frame(title = unique(dat$title),
-                          #TRange, 
-                          mn, 
-                          mn5,
-                          status, 
-                          trend,
-                          delta,
-                          Z,
-                          guage)
+  summary_df<-read.csv(here::here("data-raw", paste0(data, ".csv"))) %>% 
+    dplyr::group_by(region) %>% 
+    dplyr::filter(x %in% c(max(x):(max(x) - 4))) %>% 
+    dplyr::mutate(mn5 = mean(y, na.rm=TRUE), 
+                  status = ifelse(mn5>unique(dat_all$mn), paste0("greater than"), paste0("less than")), 
+                  delta = stats::predict(lm(x~y))[length(stats::predict(lm(x~y)))] - stats::predict(lm(x~y))[1], 
+                  Z = abs(delta)-(sd(dat_all$y, na.rm=TRUE)), 
+                  trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
+                  guage = round(stats::ecdf(dat_all$y)(mn5) *100)) %>% 
+    dplyr::summarise(title = unique(title), 
+                     region = unique(region), 
+                     mn = unique(dat_all$mn), 
+                     mn5 = unique(mn5),
+                     status = unique(status), 
+                     trend = unique(trend), 
+                     delta = unique(delta), 
+                     Z = unique(Z),
+                     guage = unique(guage))
+
   return(summary_df)
 }
 
@@ -108,7 +93,8 @@ plot_me_for_fun<- function(data){
                linetype = "dotted") +
     ggplot2::ggtitle(paste(dat$title))+
     ggplot2::ylab(expression("fix this"))+ ## Fix this with Will
-    ggplot2::xlab(expression("Year"))
+    ggplot2::xlab(expression("Year"))+
+    ggplot2::facet_wrap(~region)
   print(pt)
 }
 ```
