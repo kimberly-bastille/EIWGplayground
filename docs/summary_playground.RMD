@@ -1,7 +1,7 @@
 ---
 title: "Summary Playground"
-author: "Kimberly Bastille"
-date: "3/17/2023"
+author: "Kimberly Bastille, Modified by Will Klajbor"
+date: "5/17/2023"
 output: html_document
 ---
 
@@ -28,83 +28,182 @@ ylim_ra  <- c(0, 2e6)
 
 ```
 
+## Read in Data
+Includes all annual NaMES Indicators for now
+```{r read-in-data}
+library(tidyr)
+library(here)
+library(dplyr)
 
-```{r data-list}
-datalist<-c("dataA", "dataB", "dataC", "dataD", "dataE")
+#loop in EIWG Data
 
+eiwg_files <- list.files(here::here("data-eiwg"))
+for(i in eiwg_files) {
+  name <- gsub(".csv","",i)
+  assign(name,
+  read.csv(here("data-eiwg",i), skip = 2))
+}
+
+#list of indicator names
+
+indicator_names <- gsub(".csv","",eiwg_files)
+dfs <- Filter(function(x) is(x, "data.frame"), mget(ls()))
+res<- lapply(dfs, function(w) {gather(w, region, unit, 2:ncol(w), factor_key=TRUE)})
+indicators <- mapply(cbind, res, "title"=indicator_names, SIMPLIFY=F)
+
+#produces list of indicator dfs in same format as dummy data
 ```
 
+##Old Code
+For Dummy Data
+```{r data-list}
+#datalist<-c("dataA", "dataB", "dataC", "dataD", "dataE")
+#datalist<-c(indicators)
 
-```{r functions-to-write-into-package}
+# just use "indicators"
+```
 
+```{r old functions-to-write-into-package}
+# 
+# summarize_me_for_fun<- function(data){
+#   
+#   #dat_all<- read.csv(here::here("data-eiwg", paste0(data, ".csv"))) 
+#  dat_all <- i %>% 
+#     dplyr::group_by(region) %>% 
+#     dplyr::mutate(mn = mean(y, na.rm = TRUE))
+#   
+#   summary_df<-read.csv(here::here("data-eiwg", paste0(data, ".csv"))) %>% 
+#     dplyr::group_by(region) %>% 
+#     dplyr::filter(x %in% c(max(x):(max(x) - 4))) %>% 
+#     dplyr::mutate(mn5 = mean(y, na.rm=TRUE), 
+#                   status = ifelse(mn5>unique(dat_all$mn), paste0("greater than"), paste0("less than")), 
+#                   delta = stats::predict(lm(x~y))[length(stats::predict(lm(x~y)))] - stats::predict(lm(x~y))[1], 
+#                   Z = abs(delta)-(sd(dat_all$y, na.rm=TRUE)), 
+#                   trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
+#                   guage = round(stats::ecdf(dat_all$y)(mn5) *100)) %>% 
+#     dplyr::summarise(title = unique(title), 
+#                      region = unique(region), 
+#                      mn = unique(dat_all$mn), 
+#                      mn5 = unique(mn5),
+#                      status = unique(status), 
+#                      trend = unique(trend), 
+#                      delta = unique(delta), 
+#                      Z = unique(Z),
+#                      guage = unique(guage))
+# 
+#   return(summary_df)
+# }
+# 
+# 
+# 
+# plot_me_for_fun<- function(data){
+#  # dat<-read.csv(here::here("data-eiwg", paste0(data, ".csv")))
+#   dat <- i
+#   pt<-dat %>% ggplot2::ggplot(aes(x = x, y = y))+
+#     ggplot2::annotate("rect", fill = "green", alpha = 0.3,
+#                       xmin = max(dat$x - 10), xmax = max(dat$x),
+#                       ymin = -Inf, ymax = Inf)+
+#     theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
+#           panel.border = element_rect(colour = "black", fill=NA, size=1)) + 
+#     ggplot2::geom_line(color = "red")+
+#     ggplot2::geom_point(color = "red")+
+#     ggplot2::geom_hline(aes(yintercept = mean(y),),
+#                size = hline.size,
+#                alpha = hline.alpha,
+#                linetype = hline.lty) +
+#     #geom_hline(aes(yintercept = sd_TEMP,),
+#     ggplot2::geom_hline(aes(yintercept = mean(y) + sd(y),),
+#                size = hline.size,
+#                alpha = hline.alpha,
+#                linetype = "dotted") +
+#     #geom_hline(aes(yintercept = -sd_TEMP,),
+#     ggplot2::geom_hline(aes(yintercept = mean(y)-sd(y),),
+#                size = hline.size,
+#                alpha = hline.alpha,
+#                linetype = "dotted") +
+#     ggplot2::ggtitle(paste(dat$title))+
+#     ggplot2::ylab(expression("fix this"))+ ## Fix this with Will
+#     ggplot2::xlab(expression("Year"))+
+#     ggplot2::facet_wrap(~region)
+#   print(pt)
+# }
+```
+
+## New Code
+Adjusted for variable names on EIWG Data
+```{r new-functions}
+
+#issues: Can't handle 5+ NAs, doesn't do monthly
 summarize_me_for_fun<- function(data){
   
-  dat_all<- read.csv(here::here("data-raw", paste0(data, ".csv"))) %>% 
+  dat_all <- i %>% 
     dplyr::group_by(region) %>% 
-    dplyr::mutate(mn = mean(y, na.rm = TRUE))
+    dplyr::mutate(mn = mean(unit, na.rm = TRUE))
   
-  summary_df<-read.csv(here::here("data-raw", paste0(data, ".csv"))) %>% 
+  summary_df <- i %>% 
     dplyr::group_by(region) %>% 
-    dplyr::filter(x %in% c(max(x):(max(x) - 4))) %>% 
-    dplyr::mutate(mn5 = mean(y, na.rm=TRUE), 
-                  status = ifelse(mn5>unique(dat_all$mn), paste0("greater than"), paste0("less than")), 
-                  delta = stats::predict(lm(x~y))[length(stats::predict(lm(x~y)))] - stats::predict(lm(x~y))[1], 
-                  Z = abs(delta)-(sd(dat_all$y, na.rm=TRUE)), 
+    dplyr::filter(Year %in% c(max(Year):(max(Year) - 4))) %>% 
+    dplyr::mutate(mn5 = mean(unit, na.rm=TRUE), 
+                  status = ifelse(mn5>unique(mean(dat_all$mn)), paste0("greater than"), paste0("less than")), 
+                  delta = stats::predict(lm(Year~unit))[length(stats::predict(lm(Year~unit)))] - stats::predict(lm(Year~unit))[1], 
+                  Z = abs(delta)-(sd(dat_all$unit, na.rm=TRUE)), 
                   trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
-                  guage = round(stats::ecdf(dat_all$y)(mn5) *100)) %>% 
-    dplyr::summarise(title = unique(title), 
+                  gauge = round(stats::ecdf(dat_all$unit)(mn5) *100)) %>% 
+    dplyr::summarise(indicator = unique(title), 
                      region = unique(region), 
-                     mn = unique(dat_all$mn), 
+                     year = unique(Year),
+                     mn = unique(mean(dat_all$mn)), 
                      mn5 = unique(mn5),
                      status = unique(status), 
                      trend = unique(trend), 
                      delta = unique(delta), 
                      Z = unique(Z),
-                     guage = unique(guage))
-
+                     gauge = unique(gauge))
+  
   return(summary_df)
 }
-
-
+#issues: Can't handle 5+ NAs, doesn't do monthly
 
 plot_me_for_fun<- function(data){
-  dat<-read.csv(here::here("data-raw", paste0(data, ".csv")))
-  pt<-dat %>% ggplot2::ggplot(aes(x = x, y = y))+
-    ggplot2::annotate("rect", fill = "green", alpha = 0.3,
-                      xmin = max(dat$x - 10), xmax = max(dat$x),
-                      ymin = -Inf, ymax = Inf)+
-    theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
-          panel.border = element_rect(colour = "black", fill=NA, size=1)) + 
-    ggplot2::geom_line(color = "red")+
-    ggplot2::geom_point(color = "red")+
-    ggplot2::geom_hline(aes(yintercept = mean(y),),
-               size = hline.size,
-               alpha = hline.alpha,
-               linetype = hline.lty) +
-    #geom_hline(aes(yintercept = sd_TEMP,),
-    ggplot2::geom_hline(aes(yintercept = mean(y) + sd(y),),
-               size = hline.size,
-               alpha = hline.alpha,
-               linetype = "dotted") +
-    #geom_hline(aes(yintercept = -sd_TEMP,),
-    ggplot2::geom_hline(aes(yintercept = mean(y)-sd(y),),
-               size = hline.size,
-               alpha = hline.alpha,
-               linetype = "dotted") +
-    ggplot2::ggtitle(paste(dat$title))+
-    ggplot2::ylab(expression("fix this"))+ ## Fix this with Will
-    ggplot2::xlab(expression("Year"))+
-    ggplot2::facet_wrap(~region)
-  print(pt)
-}
+    dat <- i
+    pt<-dat %>% ggplot2::ggplot(aes(x = Year, y = unit))+
+      ggplot2::annotate("rect", fill = "green", alpha = 0.3,
+                        xmin = max(dat$Year - 5), xmax = max(dat$Year),
+                        ymin = -Inf, ymax = Inf)+
+      theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
+            panel.border = element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::geom_line(color = "red")+
+      ggplot2::geom_point(color = "red")+
+      ggplot2::geom_hline(aes(yintercept = mean(unit),),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = hline.lty) +
+      #geom_hline(aes(yintercept = sd_TEMP,),
+      ggplot2::geom_hline(aes(yintercept = mean(unit) + sd(unit),),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      #geom_hline(aes(yintercept = -sd_TEMP,),
+      ggplot2::geom_hline(aes(yintercept = mean(unit)-sd(unit),),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      ggplot2::ggtitle(paste(dat$title))+
+      ggplot2::ylab(expression("fix this"))+ ## Fix this with Will
+      ggplot2::xlab(expression("Year"))+
+      ggplot2::facet_wrap(~region)
+    print(pt)
+  }
+
 ```
+
 
 ## Plots
 
 These are all the plots you build - look how pretty. 
 
 ```{r plots, warning=FALSE}
-for (i in datalist) {
+for (i in indicators) {
   plot_me_for_fun(i)
 }
 ```
@@ -114,7 +213,7 @@ for (i in datalist) {
 ```{r summary, warning=FALSE}
 summarydf<- data.frame() #blank df to be populated
 
-for (i in datalist) {
+for (i in indicators) {
   dat<-summarize_me_for_fun(i)
   summarydf<-summarydf %>% rbind(dat)
 }
@@ -124,7 +223,46 @@ DT::datatable(summarydf)
 write.csv(summarydf, file = here::here("data","summarydf.csv"))
 ```
 
+### Will updates 5/17/23
+- Plots and table work, now need to clean up
+- Need to find a way to include data with lots of NAs
+-- summary table function stops when 5+ Nas are present at end of time series
+- Can we find way to plug in monthly data?
 
+### Will's spitballs 5/11/23
+- Need to find way to batch read in and reformat existing EIWG data
+```{r}
+# library(tidyr)
+# library(here)
+# library(dplyr)
+# 
+# #test data
+# #load in data, skip 2 rows (y label, title)
+# SST <- read_csv("data-eiwg/SST.csv", skip = 2)
+# 
+# SST_long <- gather(SST, region, degC, 2:10, factor_key=TRUE)
+# SST_format <- SST_long %>% mutate(title = "SST")
+# colnames(SST_format) <- c('y','region','x','title')
+# head(SST_format)
+# 
+# #test batch
+# #take a swing at loop
+# 
+# eiwg_files <- list.files(here::here("data-eiwg"))
+# for(i in eiwg_files) {                        
+#   name <- gsub(".csv","",i)
+#   assign(name,                                   
+#   read.csv(here("data-eiwg",i), skip = 2))
+# }
+# #this^ works but you lose units
+# 
+# indicator_names <- gsub(".csv","",eiwg_files)
+# dfs <- Filter(function(x) is(x, "data.frame"), mget(ls()))
+# res<- lapply(dfs, function(w) {gather(w, region, unit, 2:ncol(w), factor_key=TRUE)})
+# indicators <- mapply(cbind, res, "title"=indicator_names, SIMPLIFY=F)
+# 
+# #produces list of indicator dfs in same format as dummy data
+```
 
 ### Notes for improvement 3/29/23
 
