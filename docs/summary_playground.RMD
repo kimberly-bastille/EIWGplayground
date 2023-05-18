@@ -38,18 +38,36 @@ library(dplyr)
 #loop in EIWG Data
 
 eiwg_files <- list.files(here::here("data-eiwg"))
-for(i in eiwg_files) {
+
+for(i in eiwg_files) { ##### BREAKS on GLPopulation.CSV ####################
+
   name <- gsub(".csv","",i)
-  assign(name,
-  read.csv(here("data-eiwg",i), skip = 2))
+  print(name)
+  print(i)
+  header_read<- read.csv(here::here("data-eiwg",i), nrows = 1) # grabs just the two rows at the top
+  title = colnames(header_read[1]) # title from column names
+  y_lab = as.character(header_read[1,][1]) #ylab from row 1 
+  print(y_lab)
+
+  dat<- assign(name,
+         read.csv(here::here("data-eiwg",i),skip = 2))
+    colnames(dat) <- tolower(colnames(dat))
+    dat<- dat %>% 
+    tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>% 
+    dplyr::mutate(title = c(title), # adds columns with title and y label for figures
+                   y_lab = c(y_lab))
+  
+  write.csv(dat, file = here::here(paste0("data-raw/", name, ".csv"))) #writes data to data-raw to be pull directly from functions below
 }
 
-#list of indicator names
 
-indicator_names <- gsub(".csv","",eiwg_files)
-dfs <- Filter(function(x) is(x, "data.frame"), mget(ls()))
-res<- lapply(dfs, function(w) {gather(w, region, unit, 2:ncol(w), factor_key=TRUE)})
-indicators <- mapply(cbind, res, "title"=indicator_names, SIMPLIFY=F)
+##### We don't need this because it is done and saved in single file above
+#list of indicator names 
+
+# #indicator_names <- gsub(".csv","",eiwg_files)
+# dfs <- Filter(function(x) is(x, "data.frame"), mget(ls()))
+# res<- lapply(dfs, function(w) {gather(w, region, unit, 2:ncol(w), factor_key=TRUE)})
+# indicators <- mapply(cbind, res, "title"=indicator_names, SIMPLIFY=F)
 
 #produces list of indicator dfs in same format as dummy data
 ```
@@ -61,6 +79,8 @@ For Dummy Data
 #datalist<-c(indicators)
 
 # just use "indicators"
+
+datalist <- c("beach", "overfished", "recland")
 ```
 
 ```{r old functions-to-write-into-package}
@@ -135,6 +155,9 @@ Adjusted for variable names on EIWG Data
 
 #issues: Can't handle 5+ NAs, doesn't do monthly
 summarize_me_for_fun<- function(data){
+  dat_all<- read.csv(here::here("data-raw", paste0(i, ".csv")))
+  
+  
   
   dat_all <- i %>% 
     dplyr::group_by(region) %>% 
@@ -164,7 +187,7 @@ summarize_me_for_fun<- function(data){
 }
 #issues: Can't handle 5+ NAs, doesn't do monthly
 
-plot_me_for_fun<- function(data){
+plot_me_for_fun<- function(data, save = TRUE){
     dat <- i
     pt<-dat %>% ggplot2::ggplot(aes(x = Year, y = unit))+
       ggplot2::annotate("rect", fill = "green", alpha = 0.3,
@@ -193,8 +216,20 @@ plot_me_for_fun<- function(data){
       ggplot2::xlab(expression("Year"))+
       ggplot2::facet_wrap(~region)
     print(pt)
-  }
+    if(save == TRUE){
+      png(here::here(paste0("plots_saved/", something, ".png")))
+  }else{ }
+}
 
+plain_language<- function(data){
+  plain<-  summarydf %>% 
+    group_by(region, title) %>% 
+    dplyr::mutate(PlainLanguage = c(paste("this figure shows", title, " in ", y_lab, "ranging from ", min(value), "to", max(value), 
+                                          "from", min(year), "to ", max(year),". The overall trend is ", trend, 
+                                          "and the last five years are ", status, "the time series mean of ", mn, ".")))
+  return(plain)
+
+}
 ```
 
 
@@ -203,8 +238,8 @@ plot_me_for_fun<- function(data){
 These are all the plots you build - look how pretty. 
 
 ```{r plots, warning=FALSE}
-for (i in indicators) {
-  plot_me_for_fun(i)
+for (i in datalist) {
+  plot_me_for_fun(i, save = TRUE)
 }
 ```
 
@@ -213,7 +248,7 @@ for (i in indicators) {
 ```{r summary, warning=FALSE}
 summarydf<- data.frame() #blank df to be populated
 
-for (i in indicators) {
+for (i in datalist) {
   dat<-summarize_me_for_fun(i)
   summarydf<-summarydf %>% rbind(dat)
 }
