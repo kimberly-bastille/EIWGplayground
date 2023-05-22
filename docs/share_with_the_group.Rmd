@@ -1,0 +1,203 @@
+# Summary Stats Automation
+
+<!-- # ```{r} -->
+<!-- # # Files to use later in rmd -->
+<!-- # eiwg_files <- c("SST.csv", "Chla.csv", "beach.csv", "msddep.csv", "msdlat.csv") -->
+<!-- #  -->
+<!-- # for(i in eiwg_files) { ##### BREAKS on GLPopulation.CSV #################### -->
+<!-- #  -->
+<!-- #   name <- gsub(".csv","",i) -->
+<!-- #    -->
+<!-- #   header_read<- read.csv(here::here("data-eiwg",i), nrows = 1) # grabs just the two rows at the top -->
+<!-- #   title = colnames(header_read[1]) # title from column names -->
+<!-- #   y_lab = as.character(header_read[1,][1]) #ylab from row 1  -->
+<!-- #    -->
+<!-- #  -->
+<!-- #   dat<- assign(name, -->
+<!-- #          read.csv(here::here("data-eiwg",i),skip = 2)) -->
+<!-- #     colnames(dat) <- tolower(colnames(dat)) -->
+<!-- #     dat<- dat %>%  -->
+<!-- #     tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>%  -->
+<!-- #     dplyr::mutate(title = c(title), # adds columns with title and y label for figures -->
+<!-- #                    y_lab = c(y_lab)) -->
+<!-- #    -->
+<!-- #   write.csv(dat, file = here::here(paste0("data-raw/", name, ".csv"))) #writes data to data-raw to be pull directly from functions below -->
+<!-- # } -->
+<!-- #  -->
+<!-- #  -->
+<!-- # ``` -->
+
+
+```{r setup, include=FALSE, warning=FALSE, message=TRUE, echo=FALSE}
+
+library(tidyverse)
+
+shade.alpha <- 0.3
+shade.fill <- "lightgrey"
+lwd <- 1
+pcex <- 2
+trend.alpha <- 0.5
+trend.size <- 2
+hline.size <- 1
+hline.alpha <- 0.35
+hline.lty <- "dashed"
+label.size <- 5
+hjust.label <- 1.5
+letter_size <- 4
+ylim_re <- c(5e6, 30e6)
+ylim_rd <- c(1.75,2.75)
+ylim_ra  <- c(0, 2e6)
+
+#issues: Can't handle 5+ NAs, doesn't do monthly
+summarize_me_for_fun<- function(data){
+  dat_all<- read.csv(here::here("data-raw", paste0(i, ".csv")))
+
+  dat_all2 <- dat_all %>% 
+    dplyr::group_by(region, title, y_lab) %>% 
+    dplyr::summarise(mn = mean(value, na.rm = TRUE)) 
+  
+  sum_dat <- dat_all %>% 
+    dplyr::group_by(region) %>% 
+    dplyr::filter(year %in% c(max(year):(max(year) - 4))) %>% 
+    dplyr::mutate(mn5 = mean(value, na.rm=TRUE)) %>% 
+    dplyr::left_join(dat_all2, by = c("region", "title", "y_lab")) %>% 
+    dplyr::summarise(status = dplyr::case_when(mn5>mn ~ "greater than", 
+                                               mn5<mn ~ "less than"))
+  
+  summary_df<- dat_all %>% 
+    dplyr::group_by(region) %>% 
+    dplyr::mutate(mn5 = mean(value, na.rm=TRUE),
+                  delta = stats::predict(lm(year~value))[length(stats::predict(lm(year~value)))] - stats::predict(lm(year~value))[1], 
+                  Z = abs(delta)-(sd(value, na.rm=TRUE)), 
+                  trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
+                  gauge = round(stats::ecdf(value)(mn5) *100)) %>% 
+    dplyr::left_join(sum_dat, by = c("region")) %>%
+    dplyr::left_join(dat_all2, by = c("region", "title" ,"y_lab")) %>% 
+    dplyr::summarise(indicator = unique(title), 
+                     region = unique(region), 
+                     #year = unique(year),
+                     mn = unique(mn), 
+                     mn5 = unique(mn5),
+                     status = unique(status), 
+                     trend = unique(trend), 
+                     delta = unique(delta), 
+                     Z = unique(Z),
+                     gauge = unique(gauge))  
+    
+  
+  return(summary_df)
+}
+#issues: Can't handle 5+ NAs, doesn't do monthly
+
+plot_me_for_fun<- function(data, save = TRUE){
+    dat <- read.csv(here::here("data-raw", paste0(i, ".csv")))
+    
+    values<- dat %>% 
+      group_by(region) %>% 
+      dplyr::mutate(mn  = mean(value), 
+                    upper = mn + sd(value), 
+                    lower = mn - sd(value))
+    pt<-dat %>% 
+     dplyr::left_join(values, by = c("region", "value", "title", "y_lab", "year")) %>% 
+      ggplot2::ggplot(aes(x = year, y = value, group = region))+
+      ggplot2::annotate("rect", fill = "green", alpha = 0.3,
+                        xmin = max(dat$year - 5), xmax = max(dat$year),
+                        ymin = -Inf, ymax = Inf)+
+      theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
+            panel.border = element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::geom_line(color = "red")+
+      ggplot2::geom_point(color = "red")+
+      ggplot2::geom_hline(aes(yintercept = mn),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = hline.lty) +
+      #geom_hline(aes(yintercept = sd_TEMP,),
+      ggplot2::geom_hline(aes(yintercept = upper),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      #geom_hline(aes(yintercept = -sd_TEMP,),
+      ggplot2::geom_hline(aes(yintercept = lower),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      ggplot2::ggtitle(paste(values$title))+
+      ggplot2::ylab(paste(values$y_lab))+ ## Fix this with Will
+      ggplot2::xlab(expression("Year"))+
+      ggplot2::facet_wrap(~region, scales = "free")
+    print(pt)
+  #   if(save == TRUE){
+  #     png(here::here(paste0("plots_saved/", something, ".png")))
+  # }else{ }
+}
+
+# plain_language<- function(data){
+#   plain<-  summarydf %>% 
+#     group_by(region, title) %>% 
+#     dplyr::mutate(PlainLanguage = c(paste("this figure shows", title, " in ", y_lab, "ranging from ", min(value), "to", max(value), 
+#                                           "from", min(year), "to ", max(year),". The overall trend is ", trend, 
+#                                           "and the last five years are ", status, "the time series mean of ", mn, ".")))
+#   return(plain)
+# 
+# }
+```
+
+
+## Purpose 
+
+1) To make Will's life easier!! Automate and organize summary output for indicators to make it easier to update the website text.
+2) Automate the process for the Drupal writers? is this right
+3) Potentially look at indictaor status and trends as a whole across regions and indicator group? Language?
+
+## Data Sets
+- SST
+- CHLA
+- Beach Closures
+
+### Summary output
+```{r, warning=FALSE, message=TRUE, echo=FALSE}
+
+datalist <- c("SST", "Chla", "beach")
+
+summarydf<- data.frame() #blank df to be populated
+
+for (i in datalist) {
+  dat<-summarize_me_for_fun(i)
+  summarydf<-summarydf %>% rbind(dat)
+}
+
+DT::datatable(summarydf)
+
+
+```
+
+
+
+```{r, warning=FALSE, message=TRUE, echo=FALSE}
+
+
+for (i in datalist) {
+  plot_me_for_fun(i, save = TRUE)
+}
+```
+
+
+## Concerns
+Data with gaps in the end of the time series. How to handle 3 or more NAs in the last 5 years??
+- Gulf of Alaska Marine Species Distribution
+- msddep
+- msdlat
+
+```{r, warning=FALSE, message=TRUE, echo=FALSE}
+datalist2 <- c("msddep")
+
+for (i in datalist2) {
+  plot_me_for_fun(i, save = TRUE)
+}
+```
+
+
+## Next Steps
+- Link to automated data steps
+- Link to Technical Documentation
+

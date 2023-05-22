@@ -42,12 +42,11 @@ eiwg_files <- list.files(here::here("data-eiwg"))
 for(i in eiwg_files) { ##### BREAKS on GLPopulation.CSV ####################
 
   name <- gsub(".csv","",i)
-  print(name)
-  print(i)
+  
   header_read<- read.csv(here::here("data-eiwg",i), nrows = 1) # grabs just the two rows at the top
   title = colnames(header_read[1]) # title from column names
   y_lab = as.character(header_read[1,][1]) #ylab from row 1 
-  print(y_lab)
+  
 
   dat<- assign(name,
          read.csv(here::here("data-eiwg",i),skip = 2))
@@ -212,7 +211,7 @@ plot_me_for_fun<- function(data, save = TRUE){
                  alpha = hline.alpha,
                  linetype = "dotted") +
       ggplot2::ggtitle(paste(dat$title))+
-      ggplot2::ylab(expression("fix this"))+ ## Fix this with Will
+      ggplot2::ylab(expression(dat$y_lab))+ ## Fix this with Will
       ggplot2::xlab(expression("Year"))+
       ggplot2::facet_wrap(~region)
     print(pt)
