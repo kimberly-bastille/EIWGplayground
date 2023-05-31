@@ -62,16 +62,18 @@ summarize_me_for_fun<- function(data){
     dplyr::mutate(mn5 = mean(value, na.rm=TRUE)) %>% 
     dplyr::left_join(dat_all2, by = c("region", "title", "y_lab")) %>% 
     dplyr::summarise(status = dplyr::case_when(mn5>mn ~ "greater than", 
-                                               mn5<mn ~ "less than"))
+                                               mn5<mn ~ "less than"), 
+                     mn5 = mn5)
   
   summary_df<- dat_all %>% 
     dplyr::group_by(region) %>% 
-    dplyr::mutate(mn5 = mean(value, na.rm=TRUE),
+    dplyr::left_join(sum_dat, by = c("region")) %>%
+    dplyr::mutate(#mn5 = mean(value, na.rm=TRUE),
                   delta = stats::predict(lm(year~value))[length(stats::predict(lm(year~value)))] - stats::predict(lm(year~value))[1], 
                   Z = abs(delta)-(sd(value, na.rm=TRUE)), 
                   trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
                   gauge = round(stats::ecdf(value)(mn5) *100)) %>% 
-    dplyr::left_join(sum_dat, by = c("region")) %>%
+    
     dplyr::left_join(dat_all2, by = c("region", "title" ,"y_lab")) %>% 
     dplyr::summarise(indicator = unique(title), 
                      region = unique(region), 
