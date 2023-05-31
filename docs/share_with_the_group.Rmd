@@ -3,28 +3,28 @@
 <!-- # ```{r} -->
 <!-- # # Files to use later in rmd -->
 <!-- # eiwg_files <- c("SST.csv", "Chla.csv", "beach.csv", "msddep.csv", "msdlat.csv") -->
-<!-- #  -->
+<!-- # -->
 <!-- # for(i in eiwg_files) { ##### BREAKS on GLPopulation.CSV #################### -->
-<!-- #  -->
+<!-- # -->
 <!-- #   name <- gsub(".csv","",i) -->
-<!-- #    -->
+<!-- # -->
 <!-- #   header_read<- read.csv(here::here("data-eiwg",i), nrows = 1) # grabs just the two rows at the top -->
 <!-- #   title = colnames(header_read[1]) # title from column names -->
-<!-- #   y_lab = as.character(header_read[1,][1]) #ylab from row 1  -->
-<!-- #    -->
-<!-- #  -->
+<!-- #   y_lab = as.character(header_read[1,][1]) #ylab from row 1 -->
+<!-- # -->
+<!-- # -->
 <!-- #   dat<- assign(name, -->
 <!-- #          read.csv(here::here("data-eiwg",i),skip = 2)) -->
 <!-- #     colnames(dat) <- tolower(colnames(dat)) -->
-<!-- #     dat<- dat %>%  -->
-<!-- #     tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>%  -->
+<!-- #     dat<- dat %>% -->
+<!-- #     tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>% -->
 <!-- #     dplyr::mutate(title = c(title), # adds columns with title and y label for figures -->
 <!-- #                    y_lab = c(y_lab)) -->
-<!-- #    -->
+<!-- # -->
 <!-- #   write.csv(dat, file = here::here(paste0("data-raw/", name, ".csv"))) #writes data to data-raw to be pull directly from functions below -->
 <!-- # } -->
-<!-- #  -->
-<!-- #  -->
+<!-- # -->
+<!-- # -->
 <!-- # ``` -->
 
 
