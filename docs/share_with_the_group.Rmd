@@ -147,9 +147,9 @@ plot_me_for_fun<- function(data, save = TRUE){
 
 ## Purpose 
 
-1) To make Will's life easier!! Automate and organize summary output for indicators to make it easier to update the website text.
-2) Automate the process for the Drupal writers? is this right
-3) Potentially look at indictaor status and trends as a whole across regions and indicator group? Language?
+1) To make Will's life easier!! Automate and organize summary output for indicators to make it easier to update the website text. One-stop shop for SMEs?
+2) Automate the process for visualization and plain language. Beginnings of PL Automation.
+3) Look at indicator status and trends as a whole across regions and indicator group
 
 ## Data Sets
 - SST
