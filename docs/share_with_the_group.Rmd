@@ -155,7 +155,7 @@ plot_me_for_fun<- function(data, save = TRUE){
 - Beach Closures
 
 ### Summary output
-```{r, warning=FALSE, message=TRUE, echo=FALSE}
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
 datalist <- c("SST", "Chla", "beach")
 
