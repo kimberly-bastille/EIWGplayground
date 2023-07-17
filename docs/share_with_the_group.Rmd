@@ -30,7 +30,7 @@
 
 ```{r setup, include=FALSE, warning=FALSE, message=TRUE, echo=FALSE}
 
-library(tidyverse)
+library(magrittr)
 
 shade.alpha <- 0.3
 shade.fill <- "lightgrey"
@@ -48,10 +48,25 @@ ylim_re <- c(5e6, 30e6)
 ylim_rd <- c(1.75,2.75)
 ylim_ra  <- c(0, 2e6)
 
+#i = "SST"
 #issues: Can't handle 5+ NAs, doesn't do monthly
-summarize_me_for_fun<- function(data){
-  dat_all<- read.csv(here::here("data-raw", paste0(i, ".csv")))
+summarize_me_for_fun<- function(data, temporal = "annual"){
+  
+  if(temporal == "annual"){
+  name <- gsub(".csv","",i)
+  header_read<- read.csv(here::here("data-eiwg",paste0(i, ".csv")), nrows = 1) # grabs just the two rows at the top
+  title = colnames(header_read[1]) # title from column names
+  y_lab = as.character(header_read[1,][1]) #ylab from row 1 
+  
 
+  dat<- assign(name,
+         read.csv(here::here("data-eiwg",paste0(i, ".csv")), skip = 2))
+  colnames(dat) <- tolower(colnames(dat))
+  dat_all<- dat %>% 
+    tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>% 
+    dplyr::mutate(title = c(title), # adds columns with title and y label for figures
+                   y_lab = c(y_lab))
+  
   dat_all2 <- dat_all %>% 
     dplyr::group_by(region, title, y_lab) %>% 
     dplyr::summarise(mn = mean(value, na.rm = TRUE)) 
@@ -86,40 +101,107 @@ summarize_me_for_fun<- function(data){
                      Z = unique(Z),
                      gauge = unique(gauge))  
     
+  }
+  if(temporal == "monthly"){
+    
+    dat_all<- read.csv(here::here("data-eiwg", paste0(i, ".csv"))) %>% 
+      janitor::row_to_names(2) %>% 
+      dplyr::mutate(Mon = stringr::str_extract(Date, pattern = "[A-Z]+[a-z]+"),
+                    Mon = dplyr::case_when(Mon == "Jan" ~ 1, 
+                                           Mon == "Feb" ~ 2, 
+                                           Mon == "Mar" ~ 3,
+                                           Mon == "Apr" ~ 4,
+                                           Mon == "May" ~ 5,
+                                           Mon == "Jun" ~ 6,
+                                           Mon == "Jul" ~ 7,
+                                           Mon == "Aug" ~ 8,
+                                           Mon == "Sep" ~ 9,
+                                           Mon == "Oct" ~ 10,
+                                           Mon == "Nov" ~ 11,
+                                           Mon == "Dec" ~ 12),
+                    year = as.numeric(stringr::str_extract(Date, pattern = "\\d+")), 
+                    new_date = 1:length(year)) %>% 
+      dplyr::rename(value = 2) 
+
+  dat_all2 <- dat_all%>% 
+    dplyr::mutate(mn = mean(as.numeric(value, na.rm = TRUE)))
   
+  sum_dat <- dat_all  %>% 
+    dplyr::filter(year %in% c(max(year):(max(year) - 4))) %>% 
+    dplyr::mutate(mn5 = mean(as.numeric(value, na.rm=TRUE))) %>% 
+    dplyr::left_join(dat_all2, by = c("Date", "Mon", "year", "new_date", "value")) %>% 
+    dplyr::mutate(status = dplyr::case_when(mn5>mn ~ "greater than", 
+                                               mn5<mn ~ "less than"), 
+                  mn5 = mn5)
+  
+  summary_df<- sum_dat %>% 
+    dplyr::mutate(delta = stats::predict(lm(new_date~value))[length(stats::predict(lm(new_date~value)))],
+                  stats::predict(lm(year~value))[1], 
+                  Z = abs(delta)-(sd(value, na.rm=TRUE)), 
+                  trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
+                  gauge = round(stats::ecdf(value)(mn5) *100)) %>% 
+    
+    #dplyr::left_join(dat_all2, by = c("region", "title" ,"y_lab")) %>% 
+    dplyr::summarise(indicator = unique(i), 
+                     #region = unique(region), 
+                     #year = unique(year),
+                     mn = unique(mn), 
+                     mn5 = unique(mn5),
+                     status = unique(status), 
+                     trend = unique(trend), 
+                     delta = unique(delta), 
+                     Z = unique(Z),
+                     gauge = unique(gauge))  
+  
+  }
   return(summary_df)
 }
 #issues: Can't handle 5+ NAs, doesn't do monthly
 
 plot_me_for_fun<- function(data, save = TRUE){
-    dat <- read.csv(here::here("data-raw", paste0(i, ".csv")))
+  
+  
+  name <- gsub(".csv","",i)
+  header_read<- read.csv(here::here("data-eiwg",paste0(i, ".csv")), nrows = 1) # grabs just the two rows at the top
+  title = colnames(header_read[1]) # title from column names
+  y_lab = as.character(header_read[1,][1]) #ylab from row 1 
+  
+
+  dat<- assign(name,
+         read.csv(here::here("data-eiwg",paste0(i, ".csv")), skip = 2))
+  colnames(dat) <- tolower(colnames(dat))
+  dat_all<- dat %>% 
+    tidyr::pivot_longer(!year, names_to = "region", values_to = "value") %>% 
+    dplyr::mutate(title = c(title), # adds columns with title and y label for figures
+                   y_lab = c(y_lab))
+  #dat <- read.csv(here::here("data-eiwg", paste0(i, ".csv")))
     
-    values<- dat %>% 
-      group_by(region) %>% 
+    values<- dat_all %>% 
+      dplyr::group_by(region) %>% 
       dplyr::mutate(mn  = mean(value), 
                     upper = mn + sd(value), 
                     lower = mn - sd(value))
-    pt<-dat %>% 
+    pt<-dat_all %>% 
      dplyr::left_join(values, by = c("region", "value", "title", "y_lab", "year")) %>% 
-      ggplot2::ggplot(aes(x = year, y = value, group = region))+
+      ggplot2::ggplot(ggplot2::aes(x = year, y = value, group = region))+
       ggplot2::annotate("rect", fill = "green", alpha = 0.3,
                         xmin = max(dat$year - 5), xmax = max(dat$year),
                         ymin = -Inf, ymax = Inf)+
-      theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
-            panel.border = element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::theme(panel.background = ggplot2::element_rect(fill = "transparent"), # bg of the panel
+            panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=1)) +
       ggplot2::geom_line(color = "red")+
       ggplot2::geom_point(color = "red")+
-      ggplot2::geom_hline(aes(yintercept = mn),
+      ggplot2::geom_hline(ggplot2::aes(yintercept = mn),
                  size = hline.size,
                  alpha = hline.alpha,
                  linetype = hline.lty) +
       #geom_hline(aes(yintercept = sd_TEMP,),
-      ggplot2::geom_hline(aes(yintercept = upper),
+      ggplot2::geom_hline(ggplot2::aes(yintercept = upper),
                  size = hline.size,
                  alpha = hline.alpha,
                  linetype = "dotted") +
       #geom_hline(aes(yintercept = -sd_TEMP,),
-      ggplot2::geom_hline(aes(yintercept = lower),
+      ggplot2::geom_hline(ggplot2::aes(yintercept = lower),
                  size = hline.size,
                  alpha = hline.alpha,
                  linetype = "dotted") +
@@ -151,12 +233,13 @@ plot_me_for_fun<- function(data, save = TRUE){
 2) Automate the process for visualization and plain language. Beginnings of PL Automation.
 3) Look at indicator status and trends as a whole across regions and indicator group
 
-## Data Sets
+## Annual Data Sets
 - SST
 - CHLA
 - Beach Closures
 
 ### Summary output
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
 datalist <- c("SST", "Chla", "beach")
@@ -164,24 +247,44 @@ datalist <- c("SST", "Chla", "beach")
 summarydf<- data.frame() #blank df to be populated
 
 for (i in datalist) {
-  dat<-summarize_me_for_fun(i)
+  dat<-summarize_me_for_fun(i, temporal = "annual")
   summarydf<-summarydf %>% rbind(dat)
 }
 
 DT::datatable(summarydf)
-
-
 ```
 
 
+## Monthly Data Sets
+- NAO
+- MEI
 
-```{r, warning=FALSE, message=TRUE, echo=FALSE}
+**Something wrong in delta calc**
 
+### Monthly Summary output
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+datalist <- c("nao", "mei")
+
+summarydf<- data.frame() #blank df to be populated
 
 for (i in datalist) {
-  plot_me_for_fun(i, save = TRUE)
+  dat<-summarize_me_for_fun(i, temporal = "monthly")
+  summarydf<-summarydf %>% rbind(dat)
 }
+
+DT::datatable(summarydf)
 ```
+
+
+<!-- ```{r, warning=FALSE, message=TRUE, echo=FALSE} -->
+
+
+<!-- for (i in datalist) { -->
+<!--   plot_me_for_fun(i, save = TRUE) -->
+<!-- } -->
+<!-- ``` -->
 
 
 ## Concerns
