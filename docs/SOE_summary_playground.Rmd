@@ -3,19 +3,17 @@
 
 ```{r setup, include=FALSE, warning=FALSE, message=TRUE, echo=FALSE}
 
-library(tidyverse)
-dat = ecodata::forage_anomaly
+library(magrittr)
 
-data<-ecodata::wcr
-test<- summarize_me_for_fun(ecodata::wcr)
 #issues: Can't handle 5+ NAs, doesn't do monthly
-summarize_me_for_fun<- function(data){
+summarize_me_for_soe<- function(data){
 
   data <- data %>%
     dplyr::arrange(Time) %>%
     #Fill in time steps if there are missing values
     tidyr::complete(Time = tidyr::full_seq(min(data$Time):max(data$Time),1)) %>% 
-    dplyr::rename(x = Time, y = Value)
+    dplyr::rename(x = Time, y = Value) %>% 
+    dplyr::group_by(EPU)
 
   #Model fitting -------------------------------------------------------
   constant_norm <-
@@ -106,9 +104,16 @@ summarize_me_for_fun<- function(data){
                        Value_pred = lm_pred$fit)
     
     dat_all <- data %>% dplyr::left_join(pred, by = "x") %>% 
-      dplyr::rename(Time = x, 
-                    Value = y)
-    
+        dplyr::select(c("EPU", "x", "Var", "y", "Value_pred"))
+  }else{
+    dat_all <- data %>% 
+        dplyr::select(c("EPU", "x", "Var", "y"))
+  }
+  
+  dat_all<- dat_all %>% 
+    dplyr::rename(Time = x, 
+                    Value = y) 
+  
   # mean_all <- data %>% 
   #   dplyr::group_by(Var, EPU) %>% 
   #   dplyr::summarise(mn = mean(Value, na.rm = TRUE), 
@@ -124,7 +129,7 @@ summarize_me_for_fun<- function(data){
   # sum_dat <- sum_dat %>% cbind(pred_sum_dat)
   #   return(sum_dat)
     return(dat_all)
-                              }
+}
                                            
   
   
@@ -174,7 +179,6 @@ summarize_me_for_fun<- function(data){
   #   
   # 
   # return(summary_df)
-}
 
 
 # plain_language<- function(data){
@@ -196,26 +200,50 @@ summarize_me_for_fun<- function(data){
 3) Look at indicator status and trends as a whole across regions and indicator group
 
 ## Data Sets
-- WCR
+- WCR - trend 
+- forage - no trend - Have to firgue out group_by
+
 ### Summary output
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
-datalist <- c(ecodata::wcr)
+data<-ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean", 
+                                                EPU == "MAB")
+forage<- ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean") %>% 
+  dplyr::group_by(EPU) %>% 
+  summarize_me_for_soe()
 
-summarydf<- data.frame() #blank df to be populated
-
-for (i in datalist) {
-  dat<-summarize_me_for_fun(i)
-  summarydf<-summarydf %>% rbind(dat) # Start edits here
-}
-
-DT::datatable(summarydf)
+forage
+# summarydf<- data.frame() #blank df to be populated
+# 
+# for (i in datalist) {
+#   dat<-summarize_me_for_fun(i)
+#   summarydf<-summarydf %>% rbind(dat) # Start edits here
+# }
+# 
+# DT::datatable(summarydf)
 
 
 ```
 
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
+data<-ecodata::wcr
+wcr<- summarize_me_for_soe(data)
+
+wcr
+# summarydf<- data.frame() #blank df to be populated
+# 
+# for (i in datalist) {
+#   dat<-summarize_me_for_fun(i)
+#   summarydf<-summarydf %>% rbind(dat) # Start edits here
+# }
+# 
+# DT::datatable(summarydf)
+
+
+```
 
 
 
