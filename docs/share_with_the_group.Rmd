@@ -48,11 +48,10 @@ ylim_re <- c(5e6, 30e6)
 ylim_rd <- c(1.75,2.75)
 ylim_ra  <- c(0, 2e6)
 
-#i = "SST"
 #issues: Can't handle 5+ NAs, doesn't do monthly
-summarize_me_for_fun<- function(data, temporal = "annual"){
+summarize_me_for_fun<- function(data, time_step = "annual"){
   
-  if(temporal == "annual"){
+  if(time_step == "annual"){
   name <- gsub(".csv","",i)
   header_read<- read.csv(here::here("data-eiwg",paste0(i, ".csv")), nrows = 1) # grabs just the two rows at the top
   title = colnames(header_read[1]) # title from column names
@@ -102,47 +101,43 @@ summarize_me_for_fun<- function(data, temporal = "annual"){
                      gauge = unique(gauge))  
     
   }
-  if(temporal == "monthly"){
+  if(time_step == "monthly"){
     
+    name <- gsub(".csv","",i)
+    header_read<- read.csv(here::here("data-eiwg", paste0(i, ".csv"))) %>% 
+      janitor::row_to_names(1) 
+    y_lab = as.character(header_read[1,][2])
+   
     dat_all<- read.csv(here::here("data-eiwg", paste0(i, ".csv"))) %>% 
       janitor::row_to_names(2) %>% 
-      dplyr::mutate(Mon = stringr::str_extract(Date, pattern = "[A-Z]+[a-z]+"),
-                    Mon = dplyr::case_when(Mon == "Jan" ~ 1, 
-                                           Mon == "Feb" ~ 2, 
-                                           Mon == "Mar" ~ 3,
-                                           Mon == "Apr" ~ 4,
-                                           Mon == "May" ~ 5,
-                                           Mon == "Jun" ~ 6,
-                                           Mon == "Jul" ~ 7,
-                                           Mon == "Aug" ~ 8,
-                                           Mon == "Sep" ~ 9,
-                                           Mon == "Oct" ~ 10,
-                                           Mon == "Nov" ~ 11,
-                                           Mon == "Dec" ~ 12),
-                    year = as.numeric(stringr::str_extract(Date, pattern = "\\d+")), 
-                    new_date = 1:length(year)) %>% 
+      dplyr::rename_with(
+        ~ dplyr::case_when(
+            . == "Date" ~ "Year",
+            . == "year" ~ "Year",
+            TRUE ~ .)) %>% 
+      dplyr::mutate(new_date = 1:length(Year)) %>% 
       dplyr::rename(value = 2) 
 
   dat_all2 <- dat_all%>% 
     dplyr::mutate(mn = mean(as.numeric(value, na.rm = TRUE)))
   
   sum_dat <- dat_all  %>% 
-    dplyr::filter(year %in% c(max(year):(max(year) - 4))) %>% 
+    dplyr::filter(new_date %in% c(max(new_date):(max(new_date) - 59))) %>% 
     dplyr::mutate(mn5 = mean(as.numeric(value, na.rm=TRUE))) %>% 
-    dplyr::left_join(dat_all2, by = c("Date", "Mon", "year", "new_date", "value")) %>% 
+    dplyr::left_join(dat_all2, by = c("Year", "new_date", "value")) %>% 
     dplyr::mutate(status = dplyr::case_when(mn5>mn ~ "greater than", 
                                                mn5<mn ~ "less than"), 
                   mn5 = mn5)
   
   summary_df<- sum_dat %>% 
     dplyr::mutate(delta = stats::predict(lm(new_date~value))[length(stats::predict(lm(new_date~value)))],
-                  stats::predict(lm(year~value))[1], 
+                  stats::predict(lm(new_date~value))[1], 
                   Z = abs(delta)-(sd(value, na.rm=TRUE)), 
                   trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
                   gauge = round(stats::ecdf(value)(mn5) *100)) %>% 
     
     #dplyr::left_join(dat_all2, by = c("region", "title" ,"y_lab")) %>% 
-    dplyr::summarise(indicator = unique(i), 
+    dplyr::summarise(indicator = y_lab,
                      #region = unique(region), 
                      #year = unique(year),
                      mn = unique(mn), 
@@ -158,13 +153,14 @@ summarize_me_for_fun<- function(data, temporal = "annual"){
 }
 #issues: Can't handle 5+ NAs, doesn't do monthly
 
-plot_me_for_fun<- function(data, save = TRUE){
+plot_me_for_fun<- function(data, time_step = "annual", save = TRUE){
   
+  if(time_step == "annual"){
+    name <- gsub(".csv","",i)
+    header_read<- read.csv(here::here("data-eiwg",paste0(i, ".csv")), nrows = 1) # grabs just the two rows at the top
+    title = colnames(header_read[1]) # title from column names
+    y_lab = as.character(header_read[1,][1]) #ylab from row 1 
   
-  name <- gsub(".csv","",i)
-  header_read<- read.csv(here::here("data-eiwg",paste0(i, ".csv")), nrows = 1) # grabs just the two rows at the top
-  title = colnames(header_read[1]) # title from column names
-  y_lab = as.character(header_read[1,][1]) #ylab from row 1 
   
 
   dat<- assign(name,
@@ -181,6 +177,7 @@ plot_me_for_fun<- function(data, save = TRUE){
       dplyr::mutate(mn  = mean(value), 
                     upper = mn + sd(value), 
                     lower = mn - sd(value))
+    
     pt<-dat_all %>% 
      dplyr::left_join(values, by = c("region", "value", "title", "y_lab", "year")) %>% 
       ggplot2::ggplot(ggplot2::aes(x = year, y = value, group = region))+
@@ -209,6 +206,61 @@ plot_me_for_fun<- function(data, save = TRUE){
       ggplot2::ylab(paste(values$y_lab))+ ## Fix this with Will
       ggplot2::xlab(expression("Year"))+
       ggplot2::facet_wrap(~region, scales = "free")
+  }
+  
+  
+  if(time_step == "monthly"){
+    name <- gsub(".csv","",i)
+    header_read<- read.csv(here::here("data-eiwg", paste0(i, ".csv"))) %>% 
+      janitor::row_to_names(1) 
+    y_lab = as.character(header_read[1,][2])
+    
+    dat_all<- read.csv(here::here("data-eiwg", paste0(i, ".csv"))) %>% 
+      janitor::row_to_names(2) %>% 
+      dplyr::rename_with(
+        ~ dplyr::case_when(
+            . == "Date" ~ "Year",
+            . == "year" ~ "Year",
+            TRUE ~ .)) %>% 
+      dplyr::mutate(new_date = 1:length(Year)) %>% 
+      dplyr::rename(value = 2) %>% 
+      dplyr::mutate(value = as.numeric(value))
+    
+    values<- dat_all %>% 
+      dplyr::mutate(mn  = mean(value), 
+                    upper = mn + sd(value), 
+                    lower = mn - sd(value))
+    
+    pt<-dat_all %>% 
+     #dplyr::left_join(values, by = c("value", "title", "y_lab", "new_date")) %>% 
+      ggplot2::ggplot(ggplot2::aes(x = new_date, y = value))+
+      ggplot2::annotate("rect", fill = "green", alpha = 0.3,
+                        xmin = max(dat_all$new_date - 60), xmax = max(dat_all$new_date),
+                        ymin = -Inf, ymax = Inf)+
+      ggplot2::theme(panel.background = ggplot2::element_rect(fill = "transparent"), # bg of the panel
+            panel.border = ggplot2::element_rect(colour = "black", fill=NA, size=1)) +
+      ggplot2::geom_line(color = "red")+
+      ggplot2::geom_point(color = "red")+
+      ggplot2::geom_hline(ggplot2::aes(yintercept = values$mn),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = hline.lty) +
+      #geom_hline(aes(yintercept = sd_TEMP,),
+      ggplot2::geom_hline(ggplot2::aes(yintercept = values$upper),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      #geom_hline(aes(yintercept = -sd_TEMP,),
+      ggplot2::geom_hline(ggplot2::aes(yintercept = values$lower),
+                 size = hline.size,
+                 alpha = hline.alpha,
+                 linetype = "dotted") +
+      ggplot2::ggtitle(paste(dat_all$y_lab))+
+      ggplot2::ylab(paste(y_lab))+ ## Fix this with Will
+      ggplot2::xlab(expression("Time"))#+
+      #ggplot2::facet_wrap(~region, scales = "free")
+  }
+    
     print(pt)
   #   if(save == TRUE){
   #     png(here::here(paste0("plots_saved/", something, ".png")))
@@ -247,7 +299,7 @@ datalist <- c("SST", "Chla", "beach")
 summarydf<- data.frame() #blank df to be populated
 
 for (i in datalist) {
-  dat<-summarize_me_for_fun(i, temporal = "annual")
+  dat<-summarize_me_for_fun(i, time_step = "annual")
   summarydf<-summarydf %>% rbind(dat)
 }
 
@@ -255,37 +307,41 @@ DT::datatable(summarydf)
 ```
 
 
+
+```{r, warning=FALSE, message=TRUE, echo=FALSE}
+
+for (i in datalist) {
+  plot_me_for_fun(i, time_step = "annual", save = TRUE)
+}
+```
+
+### Monthly Summary output
 ## Monthly Data Sets
-- NAO
+- AMO
 - MEI
 
 **Something wrong in delta calc**
 
-### Monthly Summary output
-
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
-datalist <- c("nao", "mei")
+datalist <- c("amo", "mei")
 
 summarydf<- data.frame() #blank df to be populated
 
 for (i in datalist) {
-  dat<-summarize_me_for_fun(i, temporal = "monthly")
+  dat<-summarize_me_for_fun(i, time_step = "monthly")
   summarydf<-summarydf %>% rbind(dat)
 }
 
 DT::datatable(summarydf)
 ```
 
+```{r, warning=FALSE, message=TRUE, echo=FALSE}
 
-<!-- ```{r, warning=FALSE, message=TRUE, echo=FALSE} -->
-
-
-<!-- for (i in datalist) { -->
-<!--   plot_me_for_fun(i, save = TRUE) -->
-<!-- } -->
-<!-- ``` -->
-
+for (i in datalist) {
+  plot_me_for_fun(i, time_step = "monthly", save = TRUE)
+}
+```
 
 ## Concerns
 Data with gaps in the end of the time series. How to handle 3 or more NAs in the last 5 years??
