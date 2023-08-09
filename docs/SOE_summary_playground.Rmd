@@ -15,6 +15,20 @@ summarize_me_for_soe<- function(data){
     dplyr::rename(x = Time, y = Value) %>% 
     dplyr::group_by(EPU)
 
+  data_all <- data %>% 
+    dplyr::summarise(mean = mean(y), 
+                  sd = sd(y))
+  
+  data10 <- data %>% 
+   dplyr::filter(x %in% c(max(x):(max(x) - 9))) %>% 
+    dplyr::summarise(mean10 = mean(y), 
+                  sd10 = sd(y))
+  
+  summary_df <- data_all %>% 
+    dplyr::left_join(data10) %>% 
+    dplyr::mutate(percent_change = (mean10 - mean)/mean *100)
+  
+    
   #Model fitting -------------------------------------------------------
   constant_norm <-
     nlme::gls(y ~ 1, data = data, na.action = na.omit)
@@ -94,102 +108,19 @@ summarize_me_for_soe<- function(data){
           model <- linear_ar1
           }
   if (best_lm$pval < 0.05){
-    newtime <- seq(min(data$x), max(data$x), length.out=length(data$x))
-    newdata <- data.frame(x = newtime,
-                          x2 = newtime^2)
-    lm_pred <- AICcmodavg::predictSE(model,
-                                     newdata = newdata,
-                                     se.fit = TRUE) #Get BLUE
-    pred <- data.frame(x = data$x,
-                       Value_pred = lm_pred$fit)
-    
-    dat_all <- data %>% dplyr::left_join(pred, by = "x") %>% 
-        dplyr::select(c("EPU", "x", "Var", "y", "Value_pred"))
+    model <- best_lm %>% 
+      dplyr::select(model, pval) %>% 
+      dplyr::mutate(trend = "true")
   }else{
-    dat_all <- data %>% 
-        dplyr::select(c("EPU", "x", "Var", "y"))
+    model <- data.frame(trend = "false")
   }
   
-  dat_all<- dat_all %>% 
-    dplyr::rename(Time = x, 
-                    Value = y) 
+  summary_df <- summary_df %>% 
+    cbind(model)
   
-  # mean_all <- data %>% 
-  #   dplyr::group_by(Var, EPU) %>% 
-  #   dplyr::summarise(mn = mean(Value, na.rm = TRUE), 
-  #                    sd = sd(Value, na.rm = TRUE)) 
-  # sum_dat <- data %>% 
-  #   dplyr::group_by(Var, EPU) %>% 
-  #   dplyr::filter(Time %in% c(max(Time):(max(Time) - 4))) %>% 
-  #   dplyr::summarise(mn5 = mean(Value, na.rm=TRUE)) %>% 
-  #   dplyr::left_join(mean_all, by = c("EPU", "Var")) %>% 
-  #   dplyr::mutate(status = dplyr::case_when(mn5>mn ~ "greater than", 
-  #                                              mn5<mn ~ "less than"))
-  # 
-  # sum_dat <- sum_dat %>% cbind(pred_sum_dat)
-  #   return(sum_dat)
-    return(dat_all)
+    return(summary_df)
 }
                                            
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  # summary_df<- dat_all %>% 
-  #   dplyr::group_by(region) %>% 
-  #   dplyr::left_join(sum_dat, by = c("region")) %>%
-  #   dplyr::mutate(#mn5 = mean(value, na.rm=TRUE),
-  #                 delta = stats::predict(lm(year~value))[length(stats::predict(lm(year~value)))] - stats::predict(lm(year~value))[1], 
-  #                 Z = abs(delta)-(sd(value, na.rm=TRUE)), 
-  #                 trend = ifelse(Z > 0, paste0("significantly"), paste0("")), 
-  #                 gauge = round(stats::ecdf(value)(mn5) *100)) %>% 
-  #   
-  #   dplyr::left_join(dat_all2, by = c("region", "title" ,"y_lab")) %>% 
-  #   dplyr::summarise(indicator = unique(title), 
-  #                    region = unique(region), 
-  #                    #year = unique(year),
-  #                    mn = unique(mn), 
-  #                    mn5 = unique(mn5),
-  #                    status = unique(status), 
-  #                    trend = unique(trend), 
-  #                    delta = unique(delta), 
-  #                    Z = unique(Z),
-  #                    gauge = unique(gauge))  
-  #   
-  # 
-  # return(summary_df)
-
-
-# plain_language<- function(data){
-#   plain<-  summarydf %>% 
-#     group_by(region, title) %>% 
-#     dplyr::mutate(PlainLanguage = c(paste("this figure shows", title, " in ", y_lab, "ranging from ", min(value), "to", max(value), 
-#                                           "from", min(year), "to ", max(year),". The overall trend is ", trend, 
-#                                           "and the last five years are ", status, "the time series mean of ", mn, ".")))
-#   return(plain)
-# 
-# }
 ```
 
 
@@ -201,30 +132,22 @@ summarize_me_for_soe<- function(data){
 
 ## Data Sets
 - WCR - trend 
-- forage - no trend - Have to firgue out group_by
+- forage - no trend - Have to figure out group_by
 
 ### Summary output
 
-```{r, warning=FALSE, message=FALSE, echo=FALSE}
+<!-- ```{r, warning=FALSE, message=FALSE, echo=FALSE} -->
 
-data<-ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean", 
-                                                EPU == "MAB")
-forage<- ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean") %>% 
-  dplyr::group_by(EPU) %>% 
-  summarize_me_for_soe()
+<!-- data<-ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean",  -->
+<!--                                                 EPU == "MAB") -->
+<!-- forage<- ecodata::forage_anomaly %>% dplyr::filter(Var == "Forage_Mean") %>%  -->
+<!--   dplyr::group_by(EPU) %>%  -->
+<!--   summarize_me_for_soe() -->
 
-forage
-# summarydf<- data.frame() #blank df to be populated
-# 
-# for (i in datalist) {
-#   dat<-summarize_me_for_fun(i)
-#   summarydf<-summarydf %>% rbind(dat) # Start edits here
-# }
-# 
-# DT::datatable(summarydf)
+<!-- forage -->
 
 
-```
+<!-- ``` -->
 
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
@@ -232,7 +155,7 @@ forage
 data<-ecodata::wcr
 wcr<- summarize_me_for_soe(data)
 
-wcr
+DT::datatable(wcr)
 # summarydf<- data.frame() #blank df to be populated
 # 
 # for (i in datalist) {
@@ -249,3 +172,15 @@ wcr
 
 ## Next Steps
 
+## Notes 7/26/23
+
+Feedback from Sarah/Sean 
+1) Long term trend gls
+2) Short term trend lm
+3) Variance change over time
+4) Mean of times - SD
+5) Mean of last 10 yrs - SD
+6) Current status - % change from long term mean
+7) length of time series 
+8) Last year in time series
+9) Change from last year - Sean
