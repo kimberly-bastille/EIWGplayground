@@ -116,6 +116,10 @@ summarize_me_for_soe<- function(data){
   }
   
   summary_df <- summary_df %>% 
+    dplyr::mutate(indicator = unique(data$Var), 
+                  Max_Year = max(data$x),
+                  Min_Year = min(data$x),
+                  Timeseries_Length = Max_Year - Min_Year) %>% 
     cbind(model)
   
     return(summary_df)
